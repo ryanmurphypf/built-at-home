@@ -1,4 +1,4 @@
-export type EquipmentLevel = 1 | 2 | 3 | 4;
+export type EquipmentLevel = 1 | 2 | 3;
 
 export interface Variation {
   name: string;
@@ -22,7 +22,6 @@ export const EQUIPMENT_OPTIONS = [
   { level: 1 as EquipmentLevel, label: "Nothing (Towel / Object to Hang From)" },
   { level: 2 as EquipmentLevel, label: "Rings" },
   { level: 3 as EquipmentLevel, label: "Weights (Kettlebell / Dumbbell / Heavy Bag)" },
-  { level: 4 as EquipmentLevel, label: "Dip Bar (or 2 Chairs / Stools / Etc)" },
 ];
 
 export const MOVEMENT_PATTERNS: MovementPattern[] = [
@@ -57,7 +56,7 @@ export const MOVEMENT_PATTERNS: MovementPattern[] = [
     block: "Push",
     exercises: [
       {
-        name: "Push-ups",
+        name: "Push-ups (Horizontal)",
         slot: "A",
         variations: [
           { name: "Knee Push-ups", progression: 1, equipmentRequired: 1 },
@@ -71,16 +70,8 @@ export const MOVEMENT_PATTERNS: MovementPattern[] = [
         ],
       },
       {
-        name: "Dips",
+        name: "Push-ups (Vertical)",
         slot: "B",
-        variations: [
-          { name: "Regular Dips", progression: 1, equipmentRequired: 4 },
-          { name: "Ring Dips", progression: 2, equipmentRequired: 2 },
-        ],
-      },
-      {
-        name: "Overhead Press",
-        slot: "C",
         variations: [
           { name: "Pike Push-ups", progression: 1, equipmentRequired: 1 },
           { name: "FE Pike Push-ups", progression: 2, equipmentRequired: 1 },
