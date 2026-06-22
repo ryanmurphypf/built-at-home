@@ -1,4 +1,4 @@
-export type EquipmentLevel = 1 | 2 | 3;
+export type EquipmentLevel = 1 | 2 | 3 | 4;
 
 export interface Variation {
   name: string;
@@ -8,7 +8,7 @@ export interface Variation {
 
 export interface Exercise {
   name: string;
-  slot: string; // A, B, C, etc.
+  slot: string;
   variations: Variation[];
 }
 
@@ -19,9 +19,10 @@ export interface MovementPattern {
 }
 
 export const EQUIPMENT_OPTIONS = [
-  { level: 1 as EquipmentLevel, label: "None (Bodyweight Only)" },
-  { level: 2 as EquipmentLevel, label: "Rings / Hanging Platform" },
-  { level: 3 as EquipmentLevel, label: "Kettlebell / Dumbbell" },
+  { level: 1 as EquipmentLevel, label: "Nothing (Towel / Object to Hang From)" },
+  { level: 2 as EquipmentLevel, label: "Rings" },
+  { level: 3 as EquipmentLevel, label: "Weights (Kettlebell / Dumbbell / Heavy Bag)" },
+  { level: 4 as EquipmentLevel, label: "Dip Bar (or 2 Chairs / Stools / Etc)" },
 ];
 
 export const MOVEMENT_PATTERNS: MovementPattern[] = [
@@ -33,19 +34,19 @@ export const MOVEMENT_PATTERNS: MovementPattern[] = [
         name: "Rows",
         slot: "1",
         variations: [
-          { name: "Inverted Rows", progression: 1, equipmentRequired: 2 },
-          { name: "FE Inverted Rows", progression: 2, equipmentRequired: 2 },
-          { name: "KB Rows", progression: 3, equipmentRequired: 3 },
+          { name: "Inverted Rows", progression: 1, equipmentRequired: 1 },
+          { name: "FE Inverted Rows", progression: 2, equipmentRequired: 1 },
+          { name: "Bent Over Rows", progression: 3, equipmentRequired: 3 },
         ],
       },
       {
         name: "Pull-ups",
         slot: "2",
         variations: [
-          { name: "Chin-ups", progression: 1, equipmentRequired: 2 },
-          { name: "Neutral Grip Pull-ups", progression: 2, equipmentRequired: 2 },
-          { name: "Wide Grip Pull-ups", progression: 3, equipmentRequired: 2 },
-          { name: "Sternum Pull-ups", progression: 4, equipmentRequired: 2 },
+          { name: "Chin-ups", progression: 1, equipmentRequired: 1 },
+          { name: "Neutral Grip Pull-ups", progression: 2, equipmentRequired: 1 },
+          { name: "Wide Grip Pull-ups", progression: 3, equipmentRequired: 1 },
+          { name: "Sternum Pull-ups", progression: 4, equipmentRequired: 1 },
           { name: "Ring Pull-ups", progression: 4, equipmentRequired: 2 },
         ],
       },
@@ -66,14 +67,14 @@ export const MOVEMENT_PATTERNS: MovementPattern[] = [
           { name: "Deficit Push-ups", progression: 4, equipmentRequired: 1 },
           { name: "Ring Push-ups", progression: 5, equipmentRequired: 2 },
           { name: "FE Ring Push-ups", progression: 6, equipmentRequired: 2 },
-          { name: "SA Push-ups", progression: 7, equipmentRequired: 1 },
+          { name: "One-Arm Push-ups", progression: 7, equipmentRequired: 1 },
         ],
       },
       {
         name: "Dips",
         slot: "B",
         variations: [
-          { name: "Regular Dips", progression: 1, equipmentRequired: 2 },
+          { name: "Regular Dips", progression: 1, equipmentRequired: 4 },
           { name: "Ring Dips", progression: 2, equipmentRequired: 2 },
         ],
       },
@@ -148,9 +149,9 @@ export const MOVEMENT_PATTERNS: MovementPattern[] = [
         slot: "B",
         variations: [
           { name: "Crunches", progression: 1, equipmentRequired: 1 },
-          { name: "Hanging Knee Raises", progression: 2, equipmentRequired: 2 },
-          { name: "Hanging Leg Raises", progression: 3, equipmentRequired: 2 },
-          { name: "Toes-to-Bar", progression: 4, equipmentRequired: 2 },
+          { name: "Hanging Knee Raises", progression: 2, equipmentRequired: 1 },
+          { name: "Hanging Leg Raises", progression: 3, equipmentRequired: 1 },
+          { name: "Toes-to-Bar", progression: 4, equipmentRequired: 1 },
         ],
       },
     ],
@@ -161,6 +162,5 @@ export function filterVariations(
   variations: Variation[],
   equipmentLevels: EquipmentLevel[]
 ): Variation[] {
-  const maxLevel = Math.max(...equipmentLevels) as EquipmentLevel;
-  return variations.filter((v) => v.equipmentRequired <= maxLevel);
+  return variations.filter((v) => equipmentLevels.includes(v.equipmentRequired));
 }
