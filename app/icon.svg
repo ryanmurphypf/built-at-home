@@ -1,0 +1,12 @@
+<svg viewBox="0 0 66 58" xmlns="http://www.w3.org/2000/svg">
+  <!-- Top H left bar (grey) -->
+  <rect x="2" y="2" width="9" height="28" rx="1.5" fill="#6b7280"/>
+  <!-- Top H crossbar (grey) -->
+  <rect x="2" y="14" width="36" height="8" rx="1.5" fill="#6b7280"/>
+  <!-- Bottom H crossbar (grey) -->
+  <rect x="29" y="39" width="36" height="8" rx="1.5" fill="#6b7280"/>
+  <!-- Bottom H right bar (grey) -->
+  <rect x="56" y="28" width="9" height="28" rx="1.5" fill="#6b7280"/>
+  <!-- Shared green bar (drawn on top) -->
+  <rect x="29" y="2" width="9" height="54" rx="1.5" fill="#22c55e"/>
+</svg>

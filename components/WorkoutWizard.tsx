@@ -6,7 +6,8 @@ import { MOVEMENT_PATTERNS, EQUIPMENT_OPTIONS, filterVariations, type EquipmentL
 import { createClient } from "@/lib/supabase/client";
 
 interface SelectedExercise {
-  block: string;
+  block: string;           // original block slot (Pull, Push, Legs, Core)
+  displayBlock: string;    // what movement pattern was actually chosen (may differ if swapped)
   exerciseName: string;
   variation: Variation;
   rounds: number;
@@ -15,20 +16,58 @@ interface SelectedExercise {
 
 type Step = "equipment" | "select" | "config" | "saving";
 
+// Order blocks are presented in
+const BLOCK_ORDER = ["Pull", "Push", "Legs", "Core"];
+
 const DEFAULT_ROUNDS: Record<string, number> = { Pull: 3, Push: 3, Legs: 3, Core: 1 };
 const DEFAULT_REST: Record<string, number> = { Pull: 90, Push: 90, Legs: 90, Core: 60 };
 const REST_OPTIONS = Array.from({ length: 13 }, (_, i) => 60 + i * 15);
 
-const BLOCK_LABELS: Record<string, string> = { Pull: "Pull", Push: "Push", Legs: "Legs", Core: "Core*" };
+// Labels shown in the exercise list per block (or swapped pattern)
+const EXERCISE_LIST: Record<string, { name: string; sub?: string }[]> = {
+  Pull: [
+    { name: "Pull-ups" },
+    { name: "Rows", sub: "If unable to do 3 or more pull-ups" },
+  ],
+  Push: [
+    { name: "Push-ups (Horizontal)" },
+    { name: "Push-ups (Vertical)" },
+  ],
+  Legs: [
+    { name: "Squats" },
+    { name: "Hinges" },
+    { name: "Plyo" },
+  ],
+  Core: [
+    { name: "Static" },
+    { name: "Dynamic" },
+  ],
+};
+
+const SKIP_SUBS: Record<string, string | undefined> = {
+  Pull: "if prevented by injury or limited by equipment",
+  Push: "if prevented by injury",
+  Legs: "if prevented by injury",
+  Core: undefined,
+};
 
 export default function WorkoutWizard({ userId }: { userId: string }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("equipment");
   const [equipment, setEquipment] = useState<EquipmentLevel[]>([1]);
+
+  // activeBlock = which slot we're currently filling (Pull/Push/Legs/Core)
   const [activeBlock, setActiveBlock] = useState("Pull");
-  const [pickingVariations, setPickingVariations] = useState<string | null>(null); // exercise name
-  const [selections, setSelections] = useState<SelectedExercise[]>([]);
+  // swapping = which slot is being swapped (showing replacement patterns)
+  const [swapping, setSwapping] = useState<string | null>(null);
+  // swapTarget = for a given slot, which pattern was chosen as replacement
+  const [swapTargets, setSwapTargets] = useState<Record<string, string>>({});
+  // pickingExercise = exercise name currently showing variations
+  const [pickingExercise, setPickingExercise] = useState<string | null>(null);
+  // skipped slots
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  // selections keyed by block slot
+  const [selections, setSelections] = useState<Record<string, SelectedExercise>>({});
 
   function toggleEquipment(level: EquipmentLevel) {
     if (level === 1) return;
@@ -37,39 +76,66 @@ export default function WorkoutWizard({ userId }: { userId: string }) {
     );
   }
 
-  function skipExercise(exerciseName: string) {
-    setSkipped((prev) => new Set([...prev, exerciseName]));
-    setSelections((prev) => prev.filter((s) => s.exerciseName !== exerciseName));
+  // Which pattern is actually used for a given slot
+  function patternForSlot(slot: string): string {
+    return swapTargets[slot] ?? slot;
   }
 
-  function unskipExercise(exerciseName: string) {
-    setSkipped((prev) => { const n = new Set(prev); n.delete(exerciseName); return n; });
+  function advanceBlock(currentSlot: string) {
+    setPickingExercise(null);
+    setSwapping(null);
+    const idx = BLOCK_ORDER.indexOf(currentSlot);
+    const next = BLOCK_ORDER[idx + 1];
+    if (next) {
+      setActiveBlock(next);
+    } else {
+      setStep("config");
+    }
   }
 
-  function selectVariation(block: string, exerciseName: string, variation: Variation) {
-    setSelections((prev) => {
-      const without = prev.filter((s) => !(s.block === block && s.exerciseName === exerciseName));
-      return [...without, { block, exerciseName, variation, rounds: DEFAULT_ROUNDS[block] ?? 3, restSeconds: DEFAULT_REST[block] ?? 90 }];
-    });
-    setSkipped((prev) => { const n = new Set(prev); n.delete(exerciseName); return n; });
-    setPickingVariations(null);
+  function selectVariation(slot: string, exerciseName: string, variation: Variation) {
+    const pattern = patternForSlot(slot);
+    setSelections((prev) => ({
+      ...prev,
+      [slot]: {
+        block: slot,
+        displayBlock: pattern,
+        exerciseName,
+        variation,
+        rounds: DEFAULT_ROUNDS[slot] ?? 3,
+        restSeconds: DEFAULT_REST[slot] ?? 90,
+      },
+    }));
+    setSkipped((prev) => { const n = new Set(prev); n.delete(slot); return n; });
+    advanceBlock(slot);
   }
 
-  function removeSelection(block: string, exerciseName: string) {
-    setSelections((prev) => prev.filter((s) => !(s.block === block && s.exerciseName === exerciseName)));
+  function skipSlot(slot: string) {
+    setSkipped((prev) => new Set([...prev, slot]));
+    setSelections((prev) => { const n = { ...prev }; delete n[slot]; return n; });
+    advanceBlock(slot);
   }
 
-  function updateRounds(idx: number, rounds: number) {
-    setSelections((prev) => prev.map((s, i) => i === idx ? { ...s, rounds } : s));
+  function chooseSwapPattern(slot: string, pattern: string) {
+    setSwapTargets((prev) => ({ ...prev, [slot]: pattern }));
+    setSwapping(null);
+    setPickingExercise(null);
+    // stay on same slot, now showing the swapped pattern's exercises
   }
 
-  function updateRest(idx: number, restSeconds: number) {
-    setSelections((prev) => prev.map((s, i) => i === idx ? { ...s, restSeconds } : s));
+  function updateRounds(slot: string, rounds: number) {
+    setSelections((prev) => prev[slot] ? { ...prev, [slot]: { ...prev[slot], rounds } } : prev);
   }
 
-  function getBlockStatus(blockName: string) {
-    const count = selections.filter((s) => s.block === blockName).length;
-    return count;
+  function updateRest(slot: string, restSeconds: number) {
+    setSelections((prev) => prev[slot] ? { ...prev, [slot]: { ...prev[slot], restSeconds } } : prev);
+  }
+
+  function editSlot(slot: string) {
+    setActiveBlock(slot);
+    setPickingExercise(null);
+    setSwapping(null);
+    setStep("select");
   }
 
   async function saveWorkout() {
@@ -78,11 +144,12 @@ export default function WorkoutWizard({ userId }: { userId: string }) {
     const { data: workout, error: wErr } = await supabase.from("workouts").insert({ user_id: userId }).select("id").single();
     if (wErr || !workout) { alert("Failed to save: " + wErr?.message); setStep("config"); return; }
 
-    const exercises = selections.map((s, i) => ({
+    const orderedSelections = BLOCK_ORDER.flatMap((slot) => selections[slot] ? [selections[slot]] : []);
+    const exercises = orderedSelections.map((s, i) => ({
       workout_id: workout.id,
       position: i,
-      block: s.block,
-      movement_pattern: s.block,
+      block: s.displayBlock,
+      movement_pattern: s.displayBlock,
       exercise_name: s.exerciseName,
       variation_name: s.variation.name,
       equipment_level: s.variation.equipmentRequired,
@@ -128,181 +195,194 @@ export default function WorkoutWizard({ userId }: { userId: string }) {
 
   // ---- Select step ----
   if (step === "select") {
-    const activePattern = MOVEMENT_PATTERNS.find((p) => p.name === activeBlock)!;
+    const currentPattern = patternForSlot(activeBlock);
+    const patternData = MOVEMENT_PATTERNS.find((p) => p.name === currentPattern)!;
+
+    // Swap screen: pick a replacement pattern
+    if (swapping) {
+      const otherPatterns = BLOCK_ORDER.filter((b) => b !== swapping);
+      return (
+        <WizardShell>
+          <button onClick={() => setSwapping(null)} className="text-sm mb-4 cursor-pointer" style={{ color: "var(--text-muted)" }}>← Back</button>
+          <StepHeader title="Swap Movement" subtitle="Select a replacement" />
+          <div className="flex flex-col gap-2">
+            {otherPatterns.map((p) => (
+              <button key={p} onClick={() => chooseSwapPattern(swapping, p)}
+                className="px-4 py-4 rounded-lg text-sm font-medium text-left cursor-pointer"
+                style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                {p === "Core" ? "Core (Optional)" : p}
+              </button>
+            ))}
+          </div>
+        </WizardShell>
+      );
+    }
+
+    // Variation picker
+    if (pickingExercise) {
+      const ex = patternData.exercises.find((e) => e.name === pickingExercise)!;
+      const available = filterVariations(ex.variations, equipment).sort((a, b) => a.progression - b.progression);
+      return (
+        <WizardShell>
+          <button onClick={() => setPickingExercise(null)} className="text-sm mb-4 cursor-pointer" style={{ color: "var(--text-muted)" }}>← Back</button>
+          <StepHeader title={pickingExercise} subtitle="Select a variation" />
+          <div className="flex flex-col gap-2">
+            {available.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>No variations available with current equipment.</p>
+            ) : (
+              available.map((v) => (
+                <button key={v.name} onClick={() => selectVariation(activeBlock, pickingExercise, v)}
+                  className="px-4 py-3 rounded-lg text-sm text-left flex items-center justify-between cursor-pointer"
+                  style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                  <span>{v.name}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full ml-3 flex-shrink-0"
+                    style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>
+                    Level {v.progression}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </WizardShell>
+      );
+    }
+
+    // Exercise list
+    const exercises = EXERCISE_LIST[currentPattern] ?? [];
+    const skipSub = SKIP_SUBS[activeBlock];
+    const isSwapped = !!swapTargets[activeBlock];
 
     return (
       <WizardShell>
-        <StepHeader title="Select Exercises" subtitle="Choose one or more per movement" />
-
-        {/* Block tabs - 2x2 grid */}
-        <div className="grid grid-cols-2 gap-2 mb-6">
-          {MOVEMENT_PATTERNS.map((p) => {
-            const count = getBlockStatus(p.name);
-            const isActive = activeBlock === p.name;
+        {/* Block tabs - stacked */}
+        <div className="flex flex-col gap-2 mb-6">
+          {BLOCK_ORDER.map((slot) => {
+            const isActive = slot === activeBlock;
+            const sel = selections[slot];
+            const isSkip = skipped.has(slot);
             return (
-              <button key={p.name} onClick={() => { setActiveBlock(p.name); setPickingVariations(null); }}
-                className="px-3 py-3 rounded-xl text-sm font-semibold cursor-pointer text-left"
+              <button key={slot} onClick={() => { setActiveBlock(slot); setPickingExercise(null); setSwapping(null); }}
+                className="px-4 py-3 rounded-lg text-sm font-semibold text-left cursor-pointer"
                 style={{
-                  background: isActive ? "var(--accent)" : count > 0 ? "rgba(34,197,94,0.1)" : "var(--surface)",
-                  border: `1px solid ${isActive ? "var(--accent)" : count > 0 ? "var(--accent)" : "var(--border)"}`,
+                  background: isActive ? "var(--accent)" : sel || isSkip ? "rgba(34,197,94,0.1)" : "var(--surface)",
+                  border: `1px solid ${isActive ? "var(--accent)" : sel || isSkip ? "var(--accent)" : "var(--border)"}`,
                   color: isActive ? "#000" : "var(--text)",
                 }}>
                 <div className="flex items-center justify-between">
-                  <span>{BLOCK_LABELS[p.name]}</span>
-                  {count > 0 && !isActive && <span className="text-xs" style={{ color: "var(--accent)" }}>✓ {count}</span>}
-                </div>
-                <div className="text-xs mt-0.5 font-normal" style={{ color: isActive ? "rgba(0,0,0,0.6)" : "var(--text-muted)" }}>
-                  {p.exercises.map((e) => e.slot).join(" / ")}
+                  <span>{slot === "Core" ? "Core (Optional)" : slot}</span>
+                  {sel && !isActive && <span className="text-xs font-normal" style={{ color: "var(--accent)" }}>✓ {sel.variation.name}</span>}
+                  {isSkip && !isActive && <span className="text-xs font-normal" style={{ color: "var(--text-muted)" }}>Skipped</span>}
                 </div>
               </button>
             );
           })}
         </div>
 
-        {/* Exercise picker for active block */}
-        {!pickingVariations ? (
-          <div>
-            <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-muted)" }}>SELECT AN EXERCISE:</p>
-            <div className="flex flex-col gap-2 mb-4">
-              {activePattern.exercises.map((ex) => {
-                const available = filterVariations(ex.variations, equipment);
-                const sel = selections.find((s) => s.block === activeBlock && s.exerciseName === ex.name);
-                const isSkipped = skipped.has(ex.name);
-
-                return (
-                  <div key={ex.name} className="flex gap-2">
-                    <button
-                      onClick={() => { if (!isSkipped) setPickingVariations(ex.name); }}
-                      disabled={isSkipped}
-                      className="flex-1 px-4 py-3 rounded-lg text-sm text-left cursor-pointer disabled:opacity-40"
-                      style={{
-                        background: sel ? "rgba(34,197,94,0.1)" : "var(--surface)",
-                        border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
-                      }}>
-                      <span className="font-medium">{ex.name}</span>
-                      <span className="ml-2 text-xs" style={{ color: "var(--text-muted)" }}>({ex.slot})</span>
-                      {sel && <span className="ml-2 text-xs" style={{ color: "var(--accent)" }}>→ {sel.variation.name}</span>}
-                      {available.length === 0 && !isSkipped && <span className="ml-2 text-xs text-red-400">No equipment</span>}
-                    </button>
-                    {isSkipped ? (
-                      <button onClick={() => unskipExercise(ex.name)}
-                        className="px-3 rounded-lg text-xs cursor-pointer"
-                        style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
-                        Undo
-                      </button>
-                    ) : (
-                      <button onClick={() => { skipExercise(ex.name); }}
-                        className="px-3 rounded-lg text-xs cursor-pointer"
-                        style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
-                        Skip
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          /* Variation picker */
-          <div>
-            <button onClick={() => setPickingVariations(null)} className="text-sm mb-4 cursor-pointer" style={{ color: "var(--text-muted)" }}>
-              ← {activeBlock}
-            </button>
-            <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-muted)" }}>
-              {pickingVariations.toUpperCase()} — SELECT VARIATION:
+        {/* Exercise options */}
+        <div className="mb-2">
+          {isSwapped && (
+            <p className="text-xs mb-3" style={{ color: "var(--accent)" }}>
+              Swapped → {currentPattern === "Core" ? "Core (Optional)" : currentPattern}
             </p>
-            <div className="flex flex-col gap-2 mb-4">
-              {filterVariations(
-                activePattern.exercises.find((e) => e.name === pickingVariations)?.variations ?? [],
-                equipment
-              ).sort((a, b) => a.progression - b.progression).map((v) => (
-                <button key={v.name}
-                  onClick={() => selectVariation(activeBlock, pickingVariations, v)}
-                  className="px-4 py-3 rounded-lg text-sm text-left flex items-center justify-between cursor-pointer"
-                  style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-                  <span>{v.name}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>L{v.progression}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+          )}
+          <div className="flex flex-col gap-2">
+            {exercises.map((ex) => (
+              <button key={ex.name} onClick={() => setPickingExercise(ex.name)}
+                className="px-4 py-3 rounded-lg text-sm text-left cursor-pointer"
+                style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                <span className="font-medium">{ex.name}</span>
+                {ex.sub && <span className="block text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>({ex.sub})</span>}
+              </button>
+            ))}
 
-        {/* Selections summary */}
-        {selections.length > 0 && (
-          <div className="mb-6">
-            <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-muted)" }}>WORKOUT SUMMARY:</p>
-            <div className="flex flex-col gap-1">
-              {selections.map((s, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg text-xs"
-                  style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)" }}>
-                  <span><span className="font-semibold" style={{ color: "var(--accent)" }}>{s.block}</span> · {s.exerciseName} · {s.variation.name} (L{s.variation.progression})</span>
-                  <button onClick={() => removeSelection(s.block, s.exerciseName)} className="ml-2 cursor-pointer" style={{ color: "var(--text-muted)" }}>✕</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+            {/* Skip */}
+            <button onClick={() => skipSlot(activeBlock)}
+              className="px-4 py-3 rounded-lg text-sm text-left cursor-pointer"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+              <span className="font-medium">Skip</span>
+              {skipSub && <span className="block text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>({skipSub})</span>}
+            </button>
 
-        {selections.length > 0 && (
-          <button onClick={() => setStep("config")}
-            className="w-full py-3 rounded-lg text-sm font-semibold cursor-pointer"
-            style={{ background: "var(--accent)", color: "#000" }}>
-            Configure Workout →
-          </button>
-        )}
+            {/* Swap */}
+            <button onClick={() => setSwapping(activeBlock)}
+              className="px-4 py-3 rounded-lg text-sm text-left cursor-pointer"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+              <span className="font-medium">Swap</span>
+              <span className="block text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>(for different movement)</span>
+            </button>
+          </div>
+        </div>
       </WizardShell>
     );
   }
 
   // ---- Config step ----
   if (step === "config") {
+    const orderedSelections = BLOCK_ORDER.flatMap((slot) => selections[slot] ? [{ slot, s: selections[slot] }] : []);
+
     return (
       <WizardShell>
-        <StepHeader title="Configure" subtitle="Sets & rest time per exercise" />
+        <StepHeader title="Your Workout" subtitle="Adjust sets & rest, or change any movement" />
         <div className="flex flex-col gap-4 mb-8">
-          {selections.map((s, i) => (
-            <div key={i} className="p-4 rounded-lg" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-              <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--text-muted)" }}>{s.block.toUpperCase()}</p>
-              <p className="text-sm font-medium mb-3">{s.variation.name}</p>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Sets</label>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => updateRounds(i, Math.max(1, s.rounds - 1))}
-                      className="w-8 h-8 rounded text-sm cursor-pointer" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>−</button>
-                    <span className="text-sm w-4 text-center">{s.rounds}</span>
-                    <button onClick={() => updateRounds(i, Math.min(10, s.rounds + 1))}
-                      className="w-8 h-8 rounded text-sm cursor-pointer" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>+</button>
+          {BLOCK_ORDER.map((slot) => {
+            const sel = selections[slot];
+            const isSkipped = skipped.has(slot);
+            return (
+              <div key={slot} className="p-4 rounded-xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--text-muted)" }}>
+                      {slot === "Core" ? "CORE (OPTIONAL)" : slot.toUpperCase()}
+                    </p>
+                    <p className="text-sm font-medium">
+                      {sel ? sel.variation.name : isSkipped ? "Skipped" : "—"}
+                    </p>
+                    {sel && <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{sel.exerciseName}</p>}
                   </div>
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Rest</label>
-                  <select value={s.restSeconds} onChange={(e) => updateRest(i, Number(e.target.value))}
-                    className="text-sm px-2 py-1 rounded cursor-pointer"
+                  <button onClick={() => editSlot(slot)}
+                    className="ml-3 text-xs px-3 py-1.5 rounded-lg cursor-pointer flex-shrink-0"
                     style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)" }}>
-                    {REST_OPTIONS.map((sec) => {
-                      const m = Math.floor(sec / 60); const ss = sec % 60;
-                      return <option key={sec} value={sec}>{m}:{ss.toString().padStart(2, "0")}</option>;
-                    })}
-                  </select>
+                    Change
+                  </button>
                 </div>
+
+                {sel && (
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Sets</label>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => updateRounds(slot, Math.max(1, sel.rounds - 1))}
+                          className="w-8 h-8 rounded text-sm cursor-pointer" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>−</button>
+                        <span className="text-sm w-4 text-center">{sel.rounds}</span>
+                        <button onClick={() => updateRounds(slot, Math.min(10, sel.rounds + 1))}
+                          className="w-8 h-8 rounded text-sm cursor-pointer" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>+</button>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Rest</label>
+                      <select value={sel.restSeconds} onChange={(e) => updateRest(slot, Number(e.target.value))}
+                        className="text-sm px-2 py-1 rounded cursor-pointer"
+                        style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)" }}>
+                        {REST_OPTIONS.map((sec) => {
+                          const m = Math.floor(sec / 60); const ss = sec % 60;
+                          return <option key={sec} value={sec}>{m}:{ss.toString().padStart(2, "0")}</option>;
+                        })}
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => setStep("select")}
-            className="px-4 py-3 rounded-lg text-sm cursor-pointer"
-            style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
-            ← Back
-          </button>
+
+        {orderedSelections.length > 0 && (
           <button onClick={saveWorkout}
-            className="flex-1 py-3 rounded-lg text-sm font-semibold cursor-pointer"
+            className="w-full py-4 rounded-xl text-sm font-bold cursor-pointer"
             style={{ background: "var(--accent)", color: "#000" }}>
-            Start Workout →
+            Create Workout →
           </button>
-        </div>
+        )}
       </WizardShell>
     );
   }
