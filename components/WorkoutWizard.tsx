@@ -19,6 +19,18 @@ type Step = "equipment" | "select" | "config" | "saving";
 
 // Order blocks are presented in
 const BLOCK_ORDER = ["Pull", "Push", "Legs", "Core"];
+const SLOT_NUMBERS: Record<string, string> = { Pull: "1", Push: "2", Legs: "3", Core: "4" };
+
+function slotLabel(slot: string, swapTargets: Record<string, string>): string {
+  const num = SLOT_NUMBERS[slot];
+  const pattern = swapTargets[slot] ?? slot;
+  const name = pattern === "Core" ? "Core (optional)" : pattern;
+  const dupes = BLOCK_ORDER.filter((s) => (swapTargets[s] ?? s) === pattern);
+  if (dupes.length > 1) {
+    return `${num}) ${name} #${dupes.indexOf(slot) + 1}`;
+  }
+  return `${num}) ${name}`;
+}
 
 const DEFAULT_ROUNDS: Record<string, number> = { Pull: 3, Push: 3, Legs: 3, Core: 1 };
 const DEFAULT_REST: Record<string, number> = { Pull: 90, Push: 90, Legs: 90, Core: 60 };
@@ -270,7 +282,7 @@ export default function WorkoutWizard({ userId }: { userId: string }) {
                   color: isActive ? "#000" : "var(--text)",
                 }}>
                 <div className="flex items-center justify-between">
-                  <span>{slot === "Core" ? "Core (Optional)" : slot}</span>
+                  <span>{slotLabel(slot, swapTargets)}</span>
                   {sel && !isActive && <span className="text-xs font-normal" style={{ color: "var(--accent)" }}>✓ {sel.variation.name}</span>}
                   {isSkip && !isActive && <span className="text-xs font-normal" style={{ color: "var(--text-muted)" }}>Skipped</span>}
                 </div>
@@ -281,6 +293,7 @@ export default function WorkoutWizard({ userId }: { userId: string }) {
 
         {/* Exercise options */}
         <div className="mb-2">
+          <p className="text-sm font-semibold mb-3">Select an exercise:</p>
           {isSwapped && (
             <p className="text-xs mb-3" style={{ color: "var(--accent)" }}>
               Swapped → {currentPattern === "Core" ? "Core (Optional)" : currentPattern}
@@ -333,7 +346,7 @@ export default function WorkoutWizard({ userId }: { userId: string }) {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--text-muted)" }}>
-                      {slot === "Core" ? "CORE (OPTIONAL)" : slot.toUpperCase()}
+                      {slotLabel(slot, swapTargets).toUpperCase()}
                     </p>
                     <p className="text-sm font-medium">
                       {sel ? sel.variation.name : isSkipped ? "Skipped" : "—"}
