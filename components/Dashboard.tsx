@@ -57,7 +57,7 @@ export default function Dashboard({ workouts: initial }: { workouts: Workout[] }
   return (
     <div className="flex flex-col min-h-dvh px-4 py-8 max-w-lg mx-auto w-full">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-xl font-bold">Workout Tracker</h1>
+        <h1 className="text-xl font-bold">Homegrown Health</h1>
         <button onClick={signOut} className="text-sm cursor-pointer" style={{ color: "var(--text-muted)" }}>
           Sign out
         </button>
