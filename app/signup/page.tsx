@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Logo from "@/components/Logo";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -40,8 +41,8 @@ export default function SignupPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh px-4">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold mb-1">Create Account</h1>
-        <p className="text-sm mb-8" style={{ color: "var(--text-muted)" }}>Start tracking your workouts</p>
+        <div className="mb-6"><Logo height={48} /></div>
+        <p className="text-sm mb-8" style={{ color: "var(--text-muted)" }}>Create an account to get started</p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input
             type="email"

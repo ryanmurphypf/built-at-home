@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { MOVEMENT_PATTERNS } from "@/lib/exercises";
+import Logo from "@/components/Logo";
 
 interface Exercise {
   id: string;
@@ -165,6 +166,7 @@ export default function ActiveWorkout({
   return (
     <div className="flex flex-col min-h-dvh max-w-2xl mx-auto w-full px-4 py-8">
       <div className="flex items-center justify-between mb-6">
+        <Logo height={32} />
         <Link href="/" className="text-sm cursor-pointer" style={{ color: "var(--text-muted)" }}>← Home</Link>
         <div className="flex items-center gap-3">
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>

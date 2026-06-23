@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MOVEMENT_PATTERNS, EQUIPMENT_OPTIONS, filterVariations, type EquipmentLevel, type Variation } from "@/lib/exercises";
 import { createClient } from "@/lib/supabase/client";
+import Logo from "@/components/Logo";
 
 interface SelectedExercise {
   block: string;           // original block slot (Pull, Push, Legs, Core)
@@ -397,7 +398,12 @@ export default function WorkoutWizard({ userId }: { userId: string }) {
 }
 
 function WizardShell({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col min-h-dvh px-4 py-8 max-w-lg mx-auto w-full">{children}</div>;
+  return (
+    <div className="flex flex-col min-h-dvh px-4 py-8 max-w-lg mx-auto w-full">
+      <div className="mb-6"><Logo height={36} /></div>
+      {children}
+    </div>
+  );
 }
 
 function StepHeader({ title, subtitle }: { title: string; subtitle: string }) {

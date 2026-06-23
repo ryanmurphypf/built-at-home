@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Logo from "@/components/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function LoginPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh px-4">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold mb-1">Homegrown Health</h1>
+        <div className="mb-6"><Logo height={48} /></div>
         <p className="text-sm mb-8" style={{ color: "var(--text-muted)" }}>Sign in to continue</p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input

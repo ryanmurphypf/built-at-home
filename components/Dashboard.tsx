@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Logo from "@/components/Logo";
 
 function StructureRow({ label, detail, accent, children }: { label: string; detail: string; accent?: boolean; children?: React.ReactNode }) {
   return (
@@ -57,7 +58,7 @@ export default function Dashboard({ workouts: initial }: { workouts: Workout[] }
   return (
     <div className="flex flex-col min-h-dvh px-4 py-8 max-w-lg mx-auto w-full">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-xl font-bold">Homegrown Health</h1>
+        <Logo height={48} />
         <button onClick={signOut} className="text-sm cursor-pointer" style={{ color: "var(--text-muted)" }}>
           Sign out
         </button>
